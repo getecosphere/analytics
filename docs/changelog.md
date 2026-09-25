@@ -1,5 +1,9 @@
 # analytics changelog
 
+## 0.3.1 (2026-09-25)
+- Devices donut excludes the `unknown` bucket (events recorded before device
+  classification existed), so it reflects only classified traffic.
+
 ## 0.3.0 (2026-09-25)
 - **Locations map.** A choropleth world map (embedded `svg-maps/world`, CC BY
   4.0) highlights the countries with traffic, beside a list with full country

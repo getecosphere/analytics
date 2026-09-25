@@ -166,16 +166,16 @@
     var brand = cssVar("--color-brand") || "#5b3fd6";
     var success = cssVar("--color-success") || "#198653";
     var accent = "#f59e0b";
-    var subtle = cssVar("--color-subtle") || "#999";
 
     var dev = {};
     (data.devices || []).forEach(function (d) { dev[d.key] = d.count; });
+    // Exclude the "unknown" bucket (events recorded before device
+    // classification existed) so the donut only shows classified traffic.
     var devSegs = [
       { label: "desktop", value: dev["desktop"] || 0, color: brand },
       { label: "mobile", value: dev["mobile"] || 0, color: success },
-      { label: "tablet", value: dev["tablet"] || 0, color: accent },
-      { label: "unknown", value: dev["unknown"] || 0, color: subtle }
-    ].filter(function (s) { return s.value > 0 || s.label !== "unknown"; });
+      { label: "tablet", value: dev["tablet"] || 0, color: accent }
+    ];
     donut("devDonut", devSegs);
     legend("devLegend", devSegs);
 
