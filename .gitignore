@@ -1,0 +1,5 @@
+backend/target/
+backend/artifacts.json
+artifacts.json
+
+.DS_Store

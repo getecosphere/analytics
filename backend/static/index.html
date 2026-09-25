@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex" />
+  <title>Analytics — Ecosphere</title>
+  <link rel="stylesheet" href="/analytics-app/static/app.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="top">
+      <h1>Traffic analytics</h1>
+      <span class="site-tag" id="site">—</span>
+      <div class="live"><span class="dot"></span><span id="liveLabel">live</span></div>
+    </header>
+    <p class="sub">First-party, cookieless pageviews collected by the estate's own analytics service. Updates every few seconds.</p>
+
+    <div class="tabs" id="tabs">
+      <span class="tab on" data-range="24h">Last 24 hours</span>
+      <span class="tab" data-range="7d">Last 7 days</span>
+      <span class="tab" data-range="30d">Last 30 days</span>
+    </div>
+
+    <div class="cards">
+      <div class="card live">
+        <div class="k">Live · 5 min</div>
+        <div class="v" id="livePv">0</div>
+        <div class="d"><span id="liveVis">0</span> visitors</div>
+      </div>
+      <div class="card">
+        <div class="k">Today</div>
+        <div class="v" id="todayPv">0</div>
+        <div class="d"><span id="todayVis">0</span> visitors</div>
+      </div>
+      <div class="card">
+        <div class="k">Pageviews · range</div>
+        <div class="v" id="totPv">0</div>
+        <div class="d" id="rangeLabel">—</div>
+      </div>
+      <div class="card">
+        <div class="k">Visitors · range</div>
+        <div class="v" id="totVis">0</div>
+        <div class="d">unique (daily hash)</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 id="chartTitle">Pageviews</h2>
+      <canvas id="chart" width="1000" height="260"></canvas>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h2>Top pages</h2>
+        <table><thead><tr><th>Path</th><th class="num">Views</th></tr></thead><tbody id="pages"></tbody></table>
+      </div>
+      <div class="panel">
+        <h2>Top referrers</h2>
+        <table><thead><tr><th>Source</th><th class="num">Views</th></tr></thead><tbody id="refs"></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Countries</h2>
+      <table><thead><tr><th>Country</th><th class="num">Views</th></tr></thead><tbody id="countries"></tbody></table>
+    </div>
+
+    <p class="note">
+      Add the beacon to any page:
+      <code>&lt;script defer src="/analytics-beacon/a.js" data-site="getecosphere"&gt;&lt;/script&gt;</code>
+    </p>
+    <footer id="foot">Ecosphere · analytics LXS</footer>
+  </div>
+  <script src="/analytics-app/static/app.js"></script>
+</body>
+</html>

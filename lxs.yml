@@ -1,0 +1,78 @@
+name: analytics
+domain: analytics
+version: 0.1.0
+publisher: getecosphere
+status: unverified
+license: mit
+summary: "Privacy-first traffic analytics — cookieless first-party pageview beacon + realtime dashboard; Cloudflare/GA sources plug in as optional feeds"
+
+targets:
+  - linux/amd64
+  - darwin/arm64
+
+artifacts: {}
+
+contract:
+  version: 2
+  api: "analytics: GET /analytics-app (dashboard) + GET /analytics-app/api/summary + public beacon POST /analytics-beacon/collect"
+  env:
+    fields:
+      SERVER_PORT:
+        required: true
+        type: int
+        managed: port
+        description: "Port the analytics service listens on"
+      DATA_DIR:
+        required: false
+        type: string
+        default: "./data"
+        description: "Directory for the append-only pageview log (persists across deploys)"
+      SITE:
+        required: false
+        type: string
+        default: "default"
+        description: "Site label recorded on every event (usually the estate name)"
+    required:
+      - SERVER_PORT
+    optional:
+      - DATA_DIR
+      - SITE
+    defaults:
+      DATA_DIR: "./data"
+      SITE: "default"
+  db: "none"
+  network:
+    inbound: [http]
+    outbound: []
+  resources:
+    memory: "32m"
+    disk: "64m"
+    startup_seconds: 5
+
+runtime:
+  base: self-contained-static
+  libc: musl
+  dependencies: []
+
+provenance:
+  source: ""
+  commit: ""
+  built_by: ""
+  built_at: ""
+  target: x86_64-unknown-linux-musl
+
+release: []
+
+# `eco lxs add analytics` writes this recipe into ecompose.yml.
+# The beacon is public (browsers post it with no credentials); the dashboard
+# and its API are gated by the estate gateway at `role:superadmin`.
+analytics:
+  service:
+    name: analytics
+    port: 4300
+    access:
+      routes:
+        - { path: /analytics-beacon, level: public }
+        - { path: /analytics-beacon/*, level: public }
+        - { path: /analytics-app, level: role:superadmin, cookie: eco_token }
+        - { path: /analytics-app/*, level: role:superadmin, cookie: eco_token }
