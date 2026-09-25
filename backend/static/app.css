@@ -43,8 +43,36 @@
 .an-note { margin-top: 18px; color: var(--color-muted); font-size: 12px; }
 .an-note code { font-family: var(--font-mono); font-size: 12px; color: var(--color-ink); background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 2px 7px; }
 
+.an-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-top: 16px; }
+
+/* Locations: choropleth map + country bars */
+.an-map-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(220px, 1fr); gap: 20px; align-items: start; }
+.an-map-canvas { position: relative; min-height: 120px; }
+.an-map-canvas svg { width: 100%; height: auto; display: block; }
+.an-map-canvas path { transition: fill .15s ease; }
+.an-map-canvas path:hover { stroke: var(--color-brand); stroke-width: 1; }
+.an-clist { display: flex; flex-direction: column; gap: 9px; max-height: 380px; overflow: auto; }
+.an-cl { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; font-size: 13px; }
+.an-cl .an-cname { color: var(--color-ink); }
+.an-cl .an-ccount { color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.an-cl .an-cbar { grid-column: 1 / -1; height: 6px; border-radius: 4px; background: var(--color-surface-raised); overflow: hidden; }
+.an-cl .an-cbar i { display: block; height: 100%; background: var(--color-brand); border-radius: 4px; }
+
+/* Donuts */
+.an-donut-wrap { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.an-donut svg { display: block; }
+.an-legend { display: flex; flex-direction: column; gap: 7px; font-size: 13px; min-width: 120px; }
+.an-legend .an-li { display: flex; align-items: center; gap: 8px; }
+.an-legend .an-sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.an-legend .an-lk { color: var(--color-ink); text-transform: capitalize; }
+.an-legend .an-lv { margin-left: auto; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.an-attr { margin: 12px 0 0; color: var(--color-subtle); font-size: 11px; }
+.an-attr a { color: var(--color-brand); }
+
 @media (max-width: 900px) {
   .an-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .an-grid2 { grid-template-columns: 1fr; }
+  .an-grid3 { grid-template-columns: 1fr; }
+  .an-map-grid { grid-template-columns: 1fr; }
   .an-wrap { padding-top: 28px; }
 }

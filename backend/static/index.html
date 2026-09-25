@@ -83,6 +83,39 @@
       <canvas id="chart" width="1000" height="260"></canvas>
     </div>
 
+    <div class="an-panel">
+      <h2>Locations</h2>
+      <div class="an-map-grid">
+        <div id="map" class="an-map-canvas">
+          <div class="an-empty">Loading map…</div>
+        </div>
+        <div id="countries" class="an-clist"></div>
+      </div>
+      <p class="an-attr">Map © <a href="https://github.com/VictorCazanave/svg-maps" target="_blank" rel="noopener">svg-maps</a> (CC BY 4.0).</p>
+    </div>
+
+    <div class="an-grid3">
+      <div class="an-panel">
+        <h2>Devices</h2>
+        <div class="an-donut-wrap">
+          <div class="an-donut" id="devDonut"></div>
+          <div class="an-legend" id="devLegend"></div>
+        </div>
+      </div>
+      <div class="an-panel">
+        <h2>New vs returning</h2>
+        <div class="an-donut-wrap">
+          <div class="an-donut" id="nrDonut"></div>
+          <div class="an-legend" id="nrLegend"></div>
+        </div>
+      </div>
+      <div class="an-panel">
+        <h2>Keywords</h2>
+        <table class="an-table"><thead><tr><th>Keyword</th><th class="num">Views</th></tr></thead><tbody id="keywords"></tbody></table>
+        <p class="an-attr">From referrer query strings; search engines usually hide it → “(not provided)”, like GA.</p>
+      </div>
+    </div>
+
     <div class="an-grid2">
       <div class="an-panel">
         <h2>Top pages</h2>
@@ -92,11 +125,6 @@
         <h2>Top referrers</h2>
         <table class="an-table"><thead><tr><th>Source</th><th class="num">Views</th></tr></thead><tbody id="refs"></tbody></table>
       </div>
-    </div>
-
-    <div class="an-panel">
-      <h2>Countries</h2>
-      <table class="an-table"><thead><tr><th>Country</th><th class="num">Views</th></tr></thead><tbody id="countries"></tbody></table>
     </div>
 
     <p class="an-note">

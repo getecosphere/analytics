@@ -29,6 +29,7 @@ static DASHBOARD: &str = include_str!("../static/index.html");
 static APP_CSS: &str = include_str!("../static/app.css");
 static APP_JS: &str = include_str!("../static/app.js");
 static BEACON_JS: &str = include_str!("../static/a.js");
+static WORLD_SVG: &str = include_str!("../static/world.svg");
 
 const MAX_EVENTS: usize = 500_000;
 
@@ -52,6 +53,15 @@ struct Event {
     /// `pageview` (default) or `heartbeat` (engaged-time ping).
     #[serde(default = "kind_pageview", rename = "type")]
     kind: String,
+    /// Stable pseudonymous id (ip+ua, NOT day-rotated) — new vs returning.
+    #[serde(default)]
+    vid: String,
+    /// `desktop` | `mobile` | `tablet` | `unknown`.
+    #[serde(default)]
+    device: String,
+    /// Search keyword parsed from a referrer query string, when present.
+    #[serde(default)]
+    keyword: String,
 }
 
 #[derive(Clone)]
@@ -138,6 +148,94 @@ fn country(headers: &HeaderMap) -> String {
         .to_string()
 }
 
+fn user_agent(headers: &HeaderMap) -> String {
+    headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("")
+        .to_string()
+}
+
+/// Stable pseudonymous id for a device/browser (ip + user-agent), used to tell
+/// new from returning visitors. Not day-rotated, unlike `visitor_id`.
+fn stable_id(headers: &HeaderMap) -> String {
+    let h = fnv1a(&format!("{}|{}", client_ip(headers), user_agent(headers)));
+    format!("{:012x}", h & 0xffff_ffff_ffff)
+}
+
+fn detect_device(ua: &str) -> String {
+    let u = ua.to_ascii_lowercase();
+    if u.is_empty() {
+        return "unknown".to_string();
+    }
+    if u.contains("ipad")
+        || u.contains("tablet")
+        || u.contains("kindle")
+        || (u.contains("android") && !u.contains("mobile"))
+    {
+        "tablet".to_string()
+    } else if u.contains("mobi") || u.contains("iphone") || u.contains("android") {
+        "mobile".to_string()
+    } else {
+        "desktop".to_string()
+    }
+}
+
+fn url_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => {
+                out.push(b' ');
+                i += 1;
+            }
+            b'%' if i + 2 < bytes.len() => {
+                let hi = (bytes[i + 1] as char).to_digit(16);
+                let lo = (bytes[i + 2] as char).to_digit(16);
+                if let (Some(h), Some(l)) = (hi, lo) {
+                    out.push((h * 16 + l) as u8);
+                    i += 3;
+                } else {
+                    out.push(b'%');
+                    i += 1;
+                }
+            }
+            b => {
+                out.push(b);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).to_string()
+}
+
+/// Pull a search keyword out of a referrer's query string (`?q=…`, `?query=…`,
+/// `?p=…`, `?text=…`). Modern Google hides this, so it is often empty — the
+/// dashboard shows "(not provided)" in that case, exactly like GA.
+fn keyword_from(referrer: &str) -> String {
+    let q = match referrer.split_once('?') {
+        Some((_, q)) => q,
+        None => return String::new(),
+    };
+    let q = q.split('#').next().unwrap_or(q);
+    for pair in q.split('&') {
+        let (k, v) = match pair.split_once('=') {
+            Some(kv) => kv,
+            None => continue,
+        };
+        let kl = k.to_ascii_lowercase();
+        if ["q", "query", "p", "text", "search", "keyword", "k"].contains(&kl.as_str()) {
+            let v = url_decode(v);
+            if !v.trim().is_empty() {
+                return v;
+            }
+        }
+    }
+    String::new()
+}
+
 fn ref_host(referrer: &str) -> String {
     if referrer.trim().is_empty() {
         return "(direct)".to_string();
@@ -182,6 +280,14 @@ async fn beacon_js() -> Response {
         .into_response()
 }
 
+async fn world_svg() -> Response {
+    (
+        [(header::CONTENT_TYPE, "image/svg+xml; charset=utf-8")],
+        WORLD_SVG,
+    )
+        .into_response()
+}
+
 fn cors(r: &mut Response) {
     r.headers_mut().insert(
         header::ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -205,6 +311,8 @@ async fn collect_options() -> Response {
 
 async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes) -> Response {
     let cb: CollectBody = serde_json::from_slice(&body).unwrap_or_default();
+    let refers = cb.refers;
+    let keyword = keyword_from(&refers);
     let ev = Event {
         ts: now_ts(),
         path: if cb.path.is_empty() {
@@ -212,7 +320,7 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
         } else {
             cb.path
         },
-        refers: cb.refers,
+        refers,
         country: country(&headers),
         visitor: visitor_id(&headers),
         site: if cb.site.is_empty() {
@@ -225,6 +333,9 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
         } else {
             cb.kind
         },
+        vid: stable_id(&headers),
+        device: detect_device(&user_agent(&headers)),
+        keyword,
     };
     let is_pv = ev.kind != "heartbeat";
 
@@ -304,6 +415,23 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
     let mut pages: HashMap<String, u64> = HashMap::new();
     let mut refs: HashMap<String, u64> = HashMap::new();
     let mut countries: HashMap<String, u64> = HashMap::new();
+    let mut devices: HashMap<String, u64> = HashMap::new();
+    let mut keywords: HashMap<String, u64> = HashMap::new();
+    let mut new_vids: HashSet<String> = HashSet::new();
+    let mut returning_vids: HashSet<String> = HashSet::new();
+
+    // First-ever sighting of each stable visitor id (whole history), so we can
+    // classify the range's visitors as new vs returning.
+    let mut first_seen: HashMap<String, i64> = HashMap::new();
+    for ev in &events {
+        if ev.vid.is_empty() {
+            continue;
+        }
+        let e = first_seen.entry(ev.vid.clone()).or_insert(ev.ts);
+        if ev.ts < *e {
+            *e = ev.ts;
+        }
+    }
 
     let today = now / 86_400;
 
@@ -344,6 +472,24 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         if !ev.country.is_empty() {
             *countries.entry(ev.country.clone()).or_insert(0) += 1;
         }
+        *devices
+            .entry(if ev.device.is_empty() {
+                "unknown".to_string()
+            } else {
+                ev.device.clone()
+            })
+            .or_insert(0) += 1;
+        if !ev.keyword.is_empty() {
+            *keywords.entry(ev.keyword.clone()).or_insert(0) += 1;
+        }
+        if !ev.vid.is_empty() {
+            let fs = first_seen.get(&ev.vid).copied().unwrap_or(ev.ts);
+            if fs >= start {
+                new_vids.insert(ev.vid.clone());
+            } else {
+                returning_vids.insert(ev.vid.clone());
+            }
+        }
         if ev.ts / 86_400 == today {
             today_pv += 1;
             today_visitors.insert(ev.visitor.clone());
@@ -383,7 +529,13 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         "series": series_json,
         "top_pages": top(&pages, 10),
         "top_referrers": top(&refs, 10),
-        "top_countries": top(&countries, 10),
+        "top_countries": top(&countries, 12),
+        "devices": top(&devices, 6),
+        "new_vs_returning": {
+            "new": new_vids.len(),
+            "returning": returning_vids.len()
+        },
+        "top_keywords": top(&keywords, 10),
     });
 
     (
@@ -444,6 +596,7 @@ async fn main() {
         .route("/analytics-app/", get(dashboard))
         .route("/analytics-app/static/app.css", get(app_css))
         .route("/analytics-app/static/app.js", get(app_js))
+        .route("/analytics-app/static/world.svg", get(world_svg))
         .route("/analytics-app/api/summary", get(summary))
         .route("/analytics-app/api/health", get(health))
         .route("/analytics-beacon/a.js", get(beacon_js))

@@ -15,10 +15,23 @@ disk, is queryable, and composes like every other LXS.
 ## Two sources, one store
 
 - **First-party beacon (this version).** A tiny `a.js` posts one pageview per
-  load to `POST /analytics-beacon/collect`. Cookieless: a visitor is a daily
-  `fnv1a(ip + user-agent + day)` hash — no cookie, no fingerprint kept.
+  load plus a heartbeat every 30s while the tab is visible, to
+  `POST /analytics-beacon/collect`. Cookieless: a visitor is a daily
+  `fnv1a(ip + user-agent + day)` hash — no cookie, no fingerprint kept. Device
+  (desktop/mobile/tablet) is classified from the User-Agent.
 - **Cloudflare / GA4 (planned).** Optional feeds that merge into the same
   timeline, so "requests (edge)" and "visitors (human)" sit side by side.
+
+## Dashboard
+
+The superadmin dashboard shows: live active users (5 min, GA-style), totals and
+a timeline, a **locations choropleth map** + country list, **devices** donut,
+**new vs returning** donut, **keywords** (from referrers), top pages and top
+referrers. It renders the estate's real header/footer and follows the estate
+light/dark theme.
+
+The world map is [svg-maps/world](https://github.com/VictorCazanave/svg-maps),
+licensed CC BY 4.0.
 
 ## Compose
 
