@@ -1,77 +1,155 @@
 <!DOCTYPE html>
-<html lang="en">
+<html data-theme="light" lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="robots" content="noindex" />
   <title>Analytics — Ecosphere</title>
+  <script>(function () {
+    var t = localStorage.getItem("eco-theme");
+    if (t !== "dark") t = "light";
+    document.documentElement.setAttribute("data-theme", t);
+  })();</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="true" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css?v=20260924b" />
   <link rel="stylesheet" href="/analytics-app/static/app.css" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="top">
-      <h1>Traffic analytics</h1>
-      <span class="site-tag" id="site">—</span>
-      <div class="live"><span class="dot"></span><span id="liveLabel">live</span></div>
-    </header>
-    <p class="sub">First-party, cookieless pageviews collected by the estate's own analytics service. Updates every few seconds.</p>
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="/">
+        <img class="brand-mark-img" src="/images/ecosphere-logo-256.png?v=20260826a" alt="" />
+        <span class="brand-name">Ecosphere</span>
+      </a>
+      <nav class="nav" aria-label="Primary">
+        <div id="nav-menu" class="nav-menu">
+          <a href="/lxs">LXS</a>
+          <a href="/compose">Compose</a>
+          <a href="/articles">Articles</a>
+          <a href="/story">Story</a>
+          <a href="/pricing">Pricing</a>
+          <div id="auth-actions" class="auth-actions"></div>
+        </div>
+        <a class="nav-cta" href="/compose">Start composing →</a>
+        <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle theme"><span class="icon-dark">☾</span><span class="icon-light">☀</span></button>
+        <button id="nav-toggle" class="nav-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-menu"><span></span><span></span><span></span></button>
+      </nav>
+    </div>
+  </header>
 
-    <div class="tabs" id="tabs">
-      <span class="tab on" data-range="24h">Last 24 hours</span>
-      <span class="tab" data-range="7d">Last 7 days</span>
-      <span class="tab" data-range="30d">Last 30 days</span>
+  <main class="an-wrap">
+    <div class="an-head">
+      <div>
+        <h1>Traffic analytics</h1>
+        <p class="an-sub">First-party, cookieless pageviews collected by the estate's own analytics service — no third-party scripts.</p>
+      </div>
+      <div class="an-live"><span class="an-dot"></span><span id="liveLabel">live</span></div>
     </div>
 
-    <div class="cards">
-      <div class="card live">
-        <div class="k">Live · 5 min</div>
-        <div class="v" id="livePv">0</div>
-        <div class="d"><span id="liveVis">0</span> visitors</div>
+    <div class="an-tabs" id="tabs">
+      <button class="an-tab on" data-range="24h">Last 24 hours</button>
+      <button class="an-tab" data-range="7d">Last 7 days</button>
+      <button class="an-tab" data-range="30d">Last 30 days</button>
+      <span class="an-tag" id="site">—</span>
+    </div>
+
+    <div class="an-cards">
+      <div class="an-card an-card-live">
+        <div class="an-k">Active now · 5 min</div>
+        <div class="an-v" id="livePv">0</div>
+        <div class="an-d"><span id="liveVis">0</span> active visitors</div>
       </div>
-      <div class="card">
-        <div class="k">Today</div>
-        <div class="v" id="todayPv">0</div>
-        <div class="d"><span id="todayVis">0</span> visitors</div>
+      <div class="an-card">
+        <div class="an-k">Today</div>
+        <div class="an-v" id="todayPv">0</div>
+        <div class="an-d"><span id="todayVis">0</span> visitors</div>
       </div>
-      <div class="card">
-        <div class="k">Pageviews · range</div>
-        <div class="v" id="totPv">0</div>
-        <div class="d" id="rangeLabel">—</div>
+      <div class="an-card">
+        <div class="an-k">Pageviews · range</div>
+        <div class="an-v" id="totPv">0</div>
+        <div class="an-d" id="rangeLabel">—</div>
       </div>
-      <div class="card">
-        <div class="k">Visitors · range</div>
-        <div class="v" id="totVis">0</div>
-        <div class="d">unique (daily hash)</div>
+      <div class="an-card">
+        <div class="an-k">Visitors · range</div>
+        <div class="an-v" id="totVis">0</div>
+        <div class="an-d">unique (daily hash)</div>
       </div>
     </div>
 
-    <div class="panel">
+    <div class="an-panel">
       <h2 id="chartTitle">Pageviews</h2>
       <canvas id="chart" width="1000" height="260"></canvas>
     </div>
 
-    <div class="grid2">
-      <div class="panel">
+    <div class="an-grid2">
+      <div class="an-panel">
         <h2>Top pages</h2>
-        <table><thead><tr><th>Path</th><th class="num">Views</th></tr></thead><tbody id="pages"></tbody></table>
+        <table class="an-table"><thead><tr><th>Path</th><th class="num">Views</th></tr></thead><tbody id="pages"></tbody></table>
       </div>
-      <div class="panel">
+      <div class="an-panel">
         <h2>Top referrers</h2>
-        <table><thead><tr><th>Source</th><th class="num">Views</th></tr></thead><tbody id="refs"></tbody></table>
+        <table class="an-table"><thead><tr><th>Source</th><th class="num">Views</th></tr></thead><tbody id="refs"></tbody></table>
       </div>
     </div>
 
-    <div class="panel">
+    <div class="an-panel">
       <h2>Countries</h2>
-      <table><thead><tr><th>Country</th><th class="num">Views</th></tr></thead><tbody id="countries"></tbody></table>
+      <table class="an-table"><thead><tr><th>Country</th><th class="num">Views</th></tr></thead><tbody id="countries"></tbody></table>
     </div>
 
-    <p class="note">
+    <p class="an-note">
       Add the beacon to any page:
       <code>&lt;script defer src="/analytics-beacon/a.js" data-site="getecosphere"&gt;&lt;/script&gt;</code>
     </p>
-    <footer id="foot">Ecosphere · analytics LXS</footer>
-  </div>
+  </main>
+
+  <footer class="foot">
+    <div class="foot-inner">
+      <p>© 2026 Ecosphere · Build locally. Compose reusable capabilities. Run complete Estates.</p>
+      <nav class="foot-nav" aria-label="Footer">
+        <a href="https://github.com/getecosphere">GitHub</a>
+        <a href="/lxs">LXS</a>
+        <a href="/story">Story</a>
+        <a href="/install">Install</a>
+        <a href="/pricing">Pricing</a>
+        <a href="/articles">Articles</a>
+        <a href="/signup">Sign up</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>(function () {
+    var btn = document.getElementById("theme-toggle");
+    if (btn) btn.addEventListener("click", function () {
+      var root = document.documentElement;
+      var next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+      root.setAttribute("data-theme", next);
+      localStorage.setItem("eco-theme", next);
+    });
+    var nb = document.getElementById("nav-toggle");
+    var menu = document.getElementById("nav-menu");
+    if (nb && menu) {
+      function setOpen(open) {
+        menu.classList.toggle("open", open);
+        nb.setAttribute("aria-expanded", open ? "true" : "false");
+      }
+      nb.addEventListener("click", function (e) { e.stopPropagation(); setOpen(!menu.classList.contains("open")); });
+      menu.addEventListener("click", function (e) { if (e.target.closest("a")) setOpen(false); });
+    }
+    var s = (function () { try { return JSON.parse(localStorage.getItem("eco_session") || "null"); } catch (e) { return null; } })();
+    var aa = document.getElementById("auth-actions");
+    if (aa) {
+      if (s && s.token) {
+        aa.innerHTML = '<a class="btn-auth btn-auth-dash" href="/dashboard">Dashboard</a><a class="btn-auth btn-auth-out" href="/signin" data-logout="1">Sign out</a>';
+        var out = aa.querySelector("[data-logout]");
+        if (out) out.addEventListener("click", function (e) { e.preventDefault(); localStorage.removeItem("eco_session"); window.location.href = "/"; });
+      } else {
+        aa.innerHTML = '<a class="btn-auth btn-auth-in" href="/signin">Sign in</a>';
+      }
+    }
+  })();</script>
   <script src="/analytics-app/static/app.js"></script>
 </body>
 </html>

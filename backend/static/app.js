@@ -1,15 +1,18 @@
-/* analytics dashboard — vanilla JS, no dependencies. */
+/* analytics dashboard — vanilla JS, theme-aware, no dependencies. */
 (function () {
   var range = "24h";
 
   function el(id) { return document.getElementById(id); }
   function n(x) { return (x || 0).toLocaleString(); }
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
 
-  function rows(tbody, items, keyLabel, cls) {
+  function rows(tbody, items, cls) {
     var t = el(tbody);
     if (!t) return;
     if (!items || !items.length) {
-      t.innerHTML = '<tr><td colspan="2" class="empty">No data yet.</td></tr>';
+      t.innerHTML = '<tr><td colspan="2" class="an-empty">No data yet.</td></tr>';
       return;
     }
     t.innerHTML = items
@@ -35,15 +38,19 @@
     cv.width = w * dpr; cv.height = h * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
-
     if (!series || !series.length) return;
+
+    var colBorder = cssVar("--color-border") || "#ded9e1";
+    var colMuted = cssVar("--color-muted") || "#665f6e";
+    var colAccent = cssVar("--color-success") || "#198653";
+
     var pad = { l: 34, r: 8, t: 12, b: 26 };
     var cw = w - pad.l - pad.r, ch = h - pad.t - pad.b;
     var max = 1;
     series.forEach(function (d) { if (d.pageviews > max) max = d.pageviews; });
     var step = Math.ceil(max / 4);
 
-    ctx.strokeStyle = "#1f2b27"; ctx.fillStyle = "#8ba69b"; ctx.font = "11px ui-sans-serif, sans-serif"; ctx.lineWidth = 1;
+    ctx.strokeStyle = colBorder; ctx.fillStyle = colMuted; ctx.font = "11px ui-sans-serif, sans-serif"; ctx.lineWidth = 1;
     for (var i = 0; i <= 4; i++) {
       var y = pad.t + ch - (ch * i) / 4;
       ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l + cw, y); ctx.stroke();
@@ -59,14 +66,16 @@
       var bh = (d.pageviews / max) * ch;
       var y = pad.t + ch - bh;
       var grad = ctx.createLinearGradient(0, y, 0, pad.t + ch);
-      grad.addColorStop(0, "#34d399");
-      grad.addColorStop(1, "rgba(52,211,153,0.18)");
-      ctx.fillStyle = grad;
+      grad.addColorStop(0, colAccent);
+      grad.addColorStop(1, "color-mix(in srgb, " + colAccent + " 18%, transparent)");
+      ctx.fillStyle = colAccent;
+      ctx.globalAlpha = 0.9;
       ctx.fillRect(x, y, bw, Math.max(bh, d.pageviews > 0 ? 2 : 0));
+      ctx.globalAlpha = 1;
+      void grad;
     });
 
-    // x labels (sparse)
-    ctx.fillStyle = "#8ba69b";
+    ctx.fillStyle = colMuted;
     var every = Math.ceil(nBars / 8);
     series.forEach(function (d, i) {
       if (i % every !== 0) return;
@@ -86,30 +95,34 @@
     el("rangeLabel").textContent = range === "24h" ? "hourly" : range === "30d" ? "30-day" : "7-day";
     el("chartTitle").textContent = "Pageviews · " + data.range;
     el("liveLabel").textContent = "live · updated " + new Date().toLocaleTimeString();
-    el("foot").textContent = "Ecosphere · analytics LXS · generated " + data.generated_at;
     drawChart(data.series);
-    rows("pages", data.top_pages, "Path", "path");
-    rows("refs", data.top_referrers, "Source");
-    rows("countries", data.top_countries, "Country");
+    rows("pages", data.top_pages, "path");
+    rows("refs", data.top_referrers);
+    rows("countries", data.top_countries);
   }
 
+  var last = null;
   function load() {
     fetch("/analytics-app/api/summary?range=" + encodeURIComponent(range), { credentials: "same-origin" })
       .then(function (r) { return r.json(); })
-      .then(render)
+      .then(function (d) { last = d; render(d); })
       .catch(function () {});
   }
 
-  Array.prototype.forEach.call(document.querySelectorAll("#tabs .tab"), function (t) {
+  Array.prototype.forEach.call(document.querySelectorAll("#tabs .an-tab"), function (t) {
     t.addEventListener("click", function () {
-      Array.prototype.forEach.call(document.querySelectorAll("#tabs .tab"), function (x) { x.classList.remove("on"); });
+      Array.prototype.forEach.call(document.querySelectorAll("#tabs .an-tab"), function (x) { x.classList.remove("on"); });
       t.classList.add("on");
       range = t.getAttribute("data-range");
       load();
     });
   });
 
-  window.addEventListener("resize", function () { load(); });
+  // Redraw chart when the estate theme flips (header theme toggle).
+  new MutationObserver(function () { if (last) render(last); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  window.addEventListener("resize", function () { if (last) drawChart(last.series); });
   load();
   setInterval(load, 4000);
 })();

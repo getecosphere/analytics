@@ -32,6 +32,10 @@ static BEACON_JS: &str = include_str!("../static/a.js");
 
 const MAX_EVENTS: usize = 500_000;
 
+fn kind_pageview() -> String {
+    "pageview".to_string()
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 struct Event {
     ts: i64,
@@ -45,6 +49,9 @@ struct Event {
     visitor: String,
     #[serde(default)]
     site: String,
+    /// `pageview` (default) or `heartbeat` (engaged-time ping).
+    #[serde(default = "kind_pageview", rename = "type")]
+    kind: String,
 }
 
 #[derive(Clone)]
@@ -62,6 +69,8 @@ struct CollectBody {
     path: String,
     #[serde(default, alias = "r", alias = "referrer")]
     refers: String,
+    #[serde(default, rename = "type")]
+    kind: String,
 }
 
 #[derive(Deserialize)]
@@ -211,7 +220,13 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
         } else {
             cb.site
         },
+        kind: if cb.kind.is_empty() {
+            kind_pageview()
+        } else {
+            cb.kind
+        },
     };
+    let is_pv = ev.kind != "heartbeat";
 
     if let Ok(mut v) = state.events.lock() {
         v.push(ev.clone());
@@ -228,7 +243,7 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
             }
         }
     }
-    log("info", "pageview");
+    log("info", if is_pv { "pageview" } else { "heartbeat" });
 
     let mut r = StatusCode::NO_CONTENT.into_response();
     cors(&mut r);
@@ -310,7 +325,16 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         .collect();
 
     for ev in &events {
-        if ev.ts < start {
+        let is_pv = ev.kind != "heartbeat";
+        // Active users (GA-style): any event in the last 5 minutes, including
+        // heartbeats, keeps a visitor "active" for the full window.
+        if ev.ts >= now - 300 {
+            live_visitors.insert(ev.visitor.clone());
+            if is_pv {
+                live_pv += 1;
+            }
+        }
+        if ev.ts < start || !is_pv {
             continue;
         }
         total_pv += 1;
@@ -323,10 +347,6 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         if ev.ts / 86_400 == today {
             today_pv += 1;
             today_visitors.insert(ev.visitor.clone());
-        }
-        if ev.ts >= now - 300 {
-            live_pv += 1;
-            live_visitors.insert(ev.visitor.clone());
         }
         let idx = if hourly {
             (((ev.ts / 3_600) - (now / 3_600 - (buckets_n - 1))) as i64).clamp(0, buckets_n - 1)

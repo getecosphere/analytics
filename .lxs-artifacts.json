@@ -1,0 +1,1 @@
+{"arch":["linux/amd64","darwin/arm64"],"binaries":{"darwin/arm64":"/Users/eco/.cache/eco/lxs-build/analytics-backend/target/aarch64-apple-darwin/release/analytics-backend","linux/amd64":"/Users/eco/.cache/eco/lxs-build/analytics-backend/target/x86_64-unknown-linux-musl/release/analytics-backend"}}
