@@ -148,6 +148,19 @@
     }).join("");
   }
 
+  function renderApps(data) {
+    var box = el("liveApps");
+    var live = (data.live && data.live.apps) || [];
+    if (box) {
+      box.innerHTML = live.length
+        ? live.map(function (a) {
+            return '<span class="an-app"><span class="an-app-k">' + escapeHtml(a.key) + '</span><span class="an-app-c">' + n(a.count) + "</span></span>";
+          }).join("")
+        : '<span class="an-app-empty">No apps focused right now.</span>';
+    }
+    rows("apps", data.top_apps);
+  }
+
   function render(data) {
     el("site").textContent = data.site || "—";
     el("livePv").textContent = n(data.live.pageviews);
@@ -160,6 +173,7 @@
     el("chartTitle").textContent = "Pageviews · " + data.range;
     el("liveLabel").textContent = "live · updated " + new Date().toLocaleTimeString();
     drawChart(data.series);
+    renderApps(data);
     rows("pages", data.top_pages, "path");
     rows("refs", data.top_referrers);
 

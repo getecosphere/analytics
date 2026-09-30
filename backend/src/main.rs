@@ -5,6 +5,10 @@
 //! kept in memory for fast aggregation. The dashboard + JSON API are meant to
 //! sit behind the estate gateway at `role:superadmin`.
 //!
+//! v0.4 adds an optional `app` dimension: OS-style SPAs (one URL, app windows)
+//! report a virtual view via `window.ecoAnalytics.view(key)`, so per-app
+//! `top_apps` and per-app `live.apps` counters work without fake URLs.
+//!
 //! Future sources (Cloudflare zone/RUM, GA4) plug into the same store.
 
 use std::collections::{HashMap, HashSet};
@@ -62,6 +66,11 @@ struct Event {
     /// Search keyword parsed from a referrer query string, when present.
     #[serde(default)]
     keyword: String,
+    /// Optional app/view key. On an OS-style SPA the URL never changes, but the
+    /// visitor's real "view" is the app window they have focused — this carries
+    /// that key so per-app traffic can be counted without fake URLs.
+    #[serde(default)]
+    app: String,
 }
 
 #[derive(Clone)]
@@ -81,6 +90,8 @@ struct CollectBody {
     refers: String,
     #[serde(default, rename = "type")]
     kind: String,
+    #[serde(default)]
+    app: String,
 }
 
 #[derive(Deserialize)]
@@ -336,6 +347,7 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
         vid: stable_id(&headers),
         device: detect_device(&user_agent(&headers)),
         keyword,
+        app: cb.app,
     };
     let is_pv = ev.kind != "heartbeat";
 
@@ -419,6 +431,9 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
     let mut keywords: HashMap<String, u64> = HashMap::new();
     let mut new_vids: HashSet<String> = HashSet::new();
     let mut returning_vids: HashSet<String> = HashSet::new();
+    // Per-app pageviews (historical) + per-app distinct active visitors (live).
+    let mut apps: HashMap<String, u64> = HashMap::new();
+    let mut live_apps: HashMap<String, HashSet<String>> = HashMap::new();
 
     // First-ever sighting of each stable visitor id (whole history), so we can
     // classify the range's visitors as new vs returning.
@@ -461,6 +476,12 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
             if is_pv {
                 live_pv += 1;
             }
+            if !ev.app.is_empty() {
+                live_apps
+                    .entry(ev.app.clone())
+                    .or_default()
+                    .insert(ev.visitor.clone());
+            }
         }
         if ev.ts < start || !is_pv {
             continue;
@@ -468,6 +489,9 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         total_pv += 1;
         total_visitors.insert(ev.visitor.clone());
         *pages.entry(ev.path.clone()).or_insert(0) += 1;
+        if !ev.app.is_empty() {
+            *apps.entry(ev.app.clone()).or_insert(0) += 1;
+        }
         *refs.entry(ref_host(&ev.refers)).or_insert(0) += 1;
         if !ev.country.is_empty() {
             *countries.entry(ev.country.clone()).or_insert(0) += 1;
@@ -519,15 +543,30 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         })
         .collect();
 
+    // Live per-app: distinct active visitors currently focused in each app.
+    let mut live_apps_v: Vec<(String, usize)> =
+        live_apps.iter().map(|(k, v)| (k.clone(), v.len())).collect();
+    live_apps_v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let live_apps_json: Vec<serde_json::Value> = live_apps_v
+        .into_iter()
+        .map(|(k, c)| serde_json::json!({ "key": k, "count": c }))
+        .collect();
+
     let body = serde_json::json!({
         "range": range,
         "site": state.site,
         "generated_at": Utc.timestamp_opt(now, 0).single().map(|d| d.to_rfc3339()).unwrap_or_default(),
         "total": { "pageviews": total_pv, "visitors": total_visitors.len() },
         "today": { "pageviews": today_pv, "visitors": today_visitors.len() },
-        "live": { "window_seconds": 300, "pageviews": live_pv, "visitors": live_visitors.len() },
+        "live": {
+            "window_seconds": 300,
+            "pageviews": live_pv,
+            "visitors": live_visitors.len(),
+            "apps": live_apps_json,
+        },
         "series": series_json,
         "top_pages": top(&pages, 10),
+        "top_apps": top(&apps, 12),
         "top_referrers": top(&refs, 10),
         "top_countries": top(&countries, 12),
         "devices": top(&devices, 6),

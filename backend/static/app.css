@@ -40,6 +40,14 @@
 .an-table tr:last-child td { border-bottom: 0; }
 .an-empty { color: var(--color-muted); padding: 14px 0; }
 
+/* Apps: live chips + range table */
+.an-apps { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.an-app { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--color-border-strong); border-radius: 999px; background: var(--color-surface-raised); font-size: 13px; }
+.an-app-k { color: var(--color-ink); font-family: var(--font-mono); }
+.an-app-c { display: inline-flex; min-width: 20px; justify-content: center; padding: 1px 7px; border-radius: 999px; background: var(--color-brand); color: var(--color-surface); font-weight: 700; font-variant-numeric: tabular-nums; }
+.an-app-empty { color: var(--color-muted); font-size: 13px; }
+.an-apps-table { max-width: 420px; }
+
 .an-note { margin-top: 18px; color: var(--color-muted); font-size: 12px; }
 .an-note code { font-family: var(--font-mono); font-size: 12px; color: var(--color-ink); background: var(--color-surface-raised); border: 1px solid var(--color-border); border-radius: var(--radius-sm); padding: 2px 7px; }
 

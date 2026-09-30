@@ -1,5 +1,15 @@
 # analytics changelog
 
+## 0.4.0 (2026-09-30)
+- **App dimension (OS-style SPAs).** An event may now carry `app` — a "virtual
+  view" for apps whose UI lives in windows under a single URL. The beacon
+  exposes `window.ecoAnalytics.view(key)` (call on window focus; `""` back to
+  the desktop); a change of view counts as a pageview and the active view rides
+  on every heartbeat. Summary gains `top_apps` (per-app views over the range)
+  and `live.apps` (distinct active visitors per focused app, 5-min window).
+  The dashboard adds an **Apps** panel: live chips + a range table. Real page
+  paths stay clean (no synthetic URLs). Backward compatible — `app` is optional.
+
 ## 0.3.1 (2026-09-25)
 - Devices donut excludes the `unknown` bucket (events recorded before device
   classification existed), so it reflects only classified traffic.

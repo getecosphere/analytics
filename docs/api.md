@@ -19,12 +19,24 @@ It posts one pageview via `navigator.sendBeacon` (fallback `XMLHttpRequest`).
 Auth: none. Body (JSON):
 
 ```json
-{ "site": "getecosphere", "p": "/pricing", "r": "https://google.com/" }
+{ "site": "getecosphere", "p": "/pricing", "r": "https://google.com/", "app": "" }
 ```
 
 Also accepted: `path` (alias `p`), `referrer`/`ref` (alias `r`). Country is read
 from `CF-IPCountry`; the visitor id is a daily hash of client IP + user-agent.
 Returns `204`. CORS `*`.
+
+`app` (optional): a virtual-view key for OS-style SPAs where the URL never
+changes but the visitor's real view is the app window they have focused. The
+beacon exposes it as a helper — call on focus change:
+
+```js
+window.ecoAnalytics.view("python");  // an app gains focus
+window.ecoAnalytics.view("");        // back to the desktop
+```
+
+A change of view counts as a `pageview` (with `app` set); the active view rides
+on every `heartbeat`, so live counts are per-app.
 
 ### GET /analytics-beacon/health
 `{"status":"ok","service":"analytics"}`.
@@ -43,9 +55,10 @@ The HTML dashboard. Fetches `/analytics-app/api/summary` and refreshes every
   "generated_at": "2026-09-25T00:00:00Z",
   "total":     { "pageviews": 0, "visitors": 0 },
   "today":     { "pageviews": 0, "visitors": 0 },
-  "live":      { "window_seconds": 300, "pageviews": 0, "visitors": 0 },
+  "live":      { "window_seconds": 300, "pageviews": 0, "visitors": 0, "apps": [ { "key": "python", "count": 0 } ] },
   "series":    [ { "t": "2026-09-19", "pageviews": 0, "visitors": 0 } ],
   "top_pages": [ { "key": "/", "count": 0 } ],
+  "top_apps":  [ { "key": "python", "count": 0 } ],
   "top_referrers": [ { "key": "(direct)", "count": 0 } ],
   "top_countries": [ { "key": "ID", "count": 0 } ],
   "devices": [ { "key": "desktop", "count": 0 } ],
