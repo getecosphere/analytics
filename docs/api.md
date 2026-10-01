@@ -41,6 +41,11 @@ on every `heartbeat`, so live counts are per-app.
 ### GET /analytics-beacon/health
 `{"status":"ok","service":"analytics"}`.
 
+### GET /analytics-beacon/stats?range=24h|7d|30d
+Public minimal aggregate for lightweight widgets — no breakdowns:
+`{"range":"24h","views":373,"visitors":106,"active":3}`. (`views` = pageviews
+in range; `active` = distinct visitors in the last 5 minutes.)
+
 ## Dashboard + API (superadmin)
 
 ### GET /analytics-app

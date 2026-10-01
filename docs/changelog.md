@@ -1,5 +1,11 @@
 # analytics changelog
 
+## 0.6.0 (2026-10-01)
+- **Public minimal stats.** New `GET /analytics-beacon/stats?range=24h|7d|30d`
+  returns only aggregate counts — `views`, `visitors`, `active` — with no pages,
+  referrers, keywords, or countries. Meant for lightweight, public widgets (e.g.
+  the OS footer) that must not call the superadmin-only `/analytics-app/api/summary`.
+
 ## 0.5.0 (2026-10-01)
 - **Second dashboard view (`VIEW=app`).** `/analytics-app` can now serve a
   self-contained, **app-centric** dashboard for OS-style SPAs — no estate

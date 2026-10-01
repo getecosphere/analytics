@@ -610,6 +610,49 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         .into_response()
 }
 
+/// Public, minimal aggregate for lightweight widgets (e.g. the OS footer):
+/// just counts over a range — no pages, referrers, keywords, or countries.
+async fn public_stats(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -> Response {
+    let range = q.range.unwrap_or_else(|| "24h".to_string());
+    let now = now_ts();
+    let hours: i64 = match range.as_str() {
+        "7d" => 7 * 24,
+        "30d" => 30 * 24,
+        _ => 24,
+    };
+    let start = now - hours * 3_600;
+    let events = match state.events.lock() {
+        Ok(v) => v.clone(),
+        Err(_) => Vec::new(),
+    };
+    let mut views: u64 = 0;
+    let mut visitors: HashSet<String> = HashSet::new();
+    let mut active: HashSet<String> = HashSet::new();
+    for ev in &events {
+        if ev.kind == "pageview" && ev.ts >= start {
+            views += 1;
+            if !ev.vid.is_empty() {
+                visitors.insert(ev.vid.clone());
+            }
+        }
+        if !ev.vid.is_empty() && ev.ts >= now - 300 {
+            active.insert(ev.vid.clone());
+        }
+    }
+    let body = serde_json::json!({
+        "range": range,
+        "views": views,
+        "visitors": visitors.len(),
+        "active": active.len(),
+    })
+    .to_string();
+    (
+        [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+        body,
+    )
+        .into_response()
+}
+
 fn load_events(path: &PathBuf, events: &Arc<Mutex<Vec<Event>>>) -> usize {
     let f = match File::open(path) {
         Ok(f) => f,
@@ -676,6 +719,7 @@ async fn main() {
         .route("/analytics-beacon/a.js", get(beacon_js))
         .route("/analytics-beacon/collect", post(collect).options(collect_options))
         .route("/analytics-beacon/health", get(health))
+        .route("/analytics-beacon/stats", get(public_stats))
         // standalone aliases (local dev / direct)
         .route("/static/app.css", get(app_css))
         .route("/static/app.js", get(app_js))
