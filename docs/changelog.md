@@ -1,5 +1,15 @@
 # analytics changelog
 
+## 0.5.0 (2026-10-01)
+- **Second dashboard view (`VIEW=app`).** `/analytics-app` can now serve a
+  self-contained, **app-centric** dashboard for OS-style SPAs — no estate
+  marketing chrome, no `/static/style.css`/`/images` dependency, theme-aware
+  (follows `localStorage["rwid_theme"]`), and **mobile-first** (stacked cards,
+  responsive panels). It leads with application usage: active-now, apps focused
+  right now, top apps by views, a views timeline, devices, new-vs-returning and
+  locations. The default view is unchanged — omit `VIEW` and getecosphere.com's
+  dashboard renders exactly as before. Config field `VIEW` (default `default`).
+
 ## 0.4.0 (2026-09-30)
 - **App dimension (OS-style SPAs).** An event may now carry `app` — a "virtual
   view" for apps whose UI lives in windows under a single URL. The beacon

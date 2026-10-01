@@ -34,6 +34,11 @@ static APP_CSS: &str = include_str!("../static/app.css");
 static APP_JS: &str = include_str!("../static/app.js");
 static BEACON_JS: &str = include_str!("../static/a.js");
 static WORLD_SVG: &str = include_str!("../static/world.svg");
+// Second view: a self-contained, app-centric dashboard for OS-style SPAs
+// (selected with `VIEW=app`). The default view above is unchanged.
+static VIEW_HTML: &str = include_str!("../static/view.html");
+static VIEW_CSS: &str = include_str!("../static/view.css");
+static VIEW_JS: &str = include_str!("../static/view.js");
 
 const MAX_EVENTS: usize = 500_000;
 
@@ -78,6 +83,10 @@ struct AppState {
     events: Arc<Mutex<Vec<Event>>>,
     file: Arc<Mutex<Option<File>>>,
     site: String,
+    /// Which dashboard to serve at `/analytics-app`: `default` (estate
+    /// marketing chrome, for getecosphere.com) or `app` (self-contained,
+    /// app-centric, mobile-friendly — for OS-style SPAs like RWID).
+    view: String,
 }
 
 #[derive(Default, Deserialize)]
@@ -373,10 +382,27 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
     r
 }
 
-async fn dashboard() -> Response {
+async fn dashboard(State(state): State<AppState>) -> Response {
+    let html = if state.view == "app" { VIEW_HTML } else { DASHBOARD };
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
-        Html(DASHBOARD),
+        Html(html),
+    )
+        .into_response()
+}
+
+async fn view_css() -> Response {
+    (
+        [(header::CONTENT_TYPE, "text/css; charset=utf-8")],
+        VIEW_CSS,
+    )
+        .into_response()
+}
+
+async fn view_js() -> Response {
+    (
+        [(header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+        VIEW_JS,
     )
         .into_response()
 }
@@ -611,6 +637,12 @@ async fn main() {
         .unwrap_or(4300);
     let data_dir = PathBuf::from(std::env::var("DATA_DIR").unwrap_or_else(|_| "./data".into()));
     let site = std::env::var("SITE").unwrap_or_else(|_| "default".into());
+    // `VIEW=app` serves the app-centric, self-contained dashboard; anything
+    // else (default) keeps the estate marketing dashboard.
+    let view = std::env::var("VIEW")
+        .map(|v| v.trim().to_ascii_lowercase())
+        .unwrap_or_default();
+    let view = if view == "app" { "app".to_string() } else { "default".to_string() };
 
     let _ = fs::create_dir_all(&data_dir);
     let events_path = data_dir.join("events.ndjson");
@@ -627,6 +659,7 @@ async fn main() {
         events,
         file: Arc::new(Mutex::new(file)),
         site,
+        view,
     };
 
     let app = Router::new()
@@ -636,6 +669,8 @@ async fn main() {
         .route("/analytics-app/static/app.css", get(app_css))
         .route("/analytics-app/static/app.js", get(app_js))
         .route("/analytics-app/static/world.svg", get(world_svg))
+        .route("/analytics-app/static/view.css", get(view_css))
+        .route("/analytics-app/static/view.js", get(view_js))
         .route("/analytics-app/api/summary", get(summary))
         .route("/analytics-app/api/health", get(health))
         .route("/analytics-beacon/a.js", get(beacon_js))
@@ -644,6 +679,8 @@ async fn main() {
         // standalone aliases (local dev / direct)
         .route("/static/app.css", get(app_css))
         .route("/static/app.js", get(app_js))
+        .route("/static/view.css", get(view_css))
+        .route("/static/view.js", get(view_js))
         .route("/api/summary", get(summary))
         .with_state(state);
 

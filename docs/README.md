@@ -33,16 +33,27 @@ light/dark theme.
 The world map is [svg-maps/world](https://github.com/VictorCazanave/svg-maps),
 licensed CC BY 4.0.
 
+### App view (`VIEW=app`)
+
+For an OS-style SPA (one URL, app windows) the default dashboard's marketing
+chrome (`/static/style.css`, header/footer, top pages) does not fit. Set
+`VIEW: app` and `/analytics-app` serves a **second, self-contained dashboard**:
+no estate assets, theme-aware (follows the OS theme), **mobile-first**, and led
+by application usage — active now, apps focused right now, top apps, a views
+timeline, devices, new-vs-returning and locations. The default view is
+untouched when `VIEW` is omitted.
+
 ## Compose
 
 ```yaml
 services:
   analytics:
-    lxs: analytics@0.1.0
+    lxs: analytics@0.5.0
     port: 4300
     config:
       DATA_DIR: /var/lib/eco-analytics/<estate>
       SITE: <estate>
+      VIEW: app          # omit for the default (marketing) dashboard
     access:
       routes:
         - { path: /analytics-beacon, level: public }

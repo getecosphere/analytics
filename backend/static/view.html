@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="id" data-mode="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex" />
+  <title>Application Analytics</title>
+  <script>(function () {
+    // Ikut tema OS RWID (localStorage se-origin): "terang" → mode terang.
+    try {
+      var t = localStorage.getItem("rwid_theme");
+      document.documentElement.dataset.mode = t === "terang" ? "light" : "dark";
+    } catch (e) {}
+  })();</script>
+  <link rel="stylesheet" href="/analytics-app/static/view.css" />
+</head>
+<body>
+  <main class="va-wrap">
+    <header class="va-head">
+      <div class="va-head-t">
+        <h1>Application Analytics</h1>
+        <p class="va-sub">Pemakaian aplikasi realtime dari beacon pihak pertama — tanpa cookie, tanpa skrip pihak ketiga.</p>
+      </div>
+      <div class="va-live"><span class="va-dot"></span><span id="vaLive">live</span></div>
+    </header>
+
+    <div class="va-tabs" id="vaTabs" role="tablist" aria-label="Rentang waktu">
+      <button class="va-tab on" data-range="24h" type="button">24 jam</button>
+      <button class="va-tab" data-range="7d" type="button">7 hari</button>
+      <button class="va-tab" data-range="30d" type="button">30 hari</button>
+      <span class="va-tag" id="vaSite">—</span>
+    </div>
+
+    <section class="va-cards">
+      <div class="va-card va-card-live">
+        <div class="va-k">Aktif sekarang</div>
+        <div class="va-v" id="vaActive">0</div>
+        <div class="va-d"><span id="vaLivePv">0</span> tampilan · 5 menit</div>
+      </div>
+      <div class="va-card">
+        <div class="va-k">Hari ini</div>
+        <div class="va-v" id="vaToday">0</div>
+        <div class="va-d"><span id="vaTodayPv">0</span> tampilan</div>
+      </div>
+      <div class="va-card">
+        <div class="va-k">Pengguna · rentang</div>
+        <div class="va-v" id="vaVis">0</div>
+        <div class="va-d" id="vaRangeLabel">—</div>
+      </div>
+      <div class="va-card">
+        <div class="va-k">Tampilan aplikasi</div>
+        <div class="va-v" id="vaPv">0</div>
+        <div class="va-d">dibuka sepanjang rentang</div>
+      </div>
+    </section>
+
+    <section class="va-panel">
+      <h2>Aktivitas aplikasi</h2>
+      <canvas id="vaChart" height="200"></canvas>
+    </section>
+
+    <section class="va-panel">
+      <h2>Aplikasi sedang dibuka <span class="va-attr">fokus saat ini · 5 menit</span></h2>
+      <div id="vaLiveApps" class="va-chips"></div>
+      <table class="va-table">
+        <thead><tr><th>Aplikasi</th><th class="num">Dibuka · rentang</th></tr></thead>
+        <tbody id="vaApps"></tbody>
+      </table>
+    </section>
+
+    <section class="va-grid2">
+      <div class="va-panel">
+        <h2>Perangkat</h2>
+        <div class="va-donut-wrap"><div id="vaDevDonut" class="va-donut"></div><div id="vaDevLegend" class="va-legend"></div></div>
+      </div>
+      <div class="va-panel">
+        <h2>Baru vs kembali</h2>
+        <div class="va-donut-wrap"><div id="vaNrDonut" class="va-donut"></div><div id="vaNrLegend" class="va-legend"></div></div>
+      </div>
+    </section>
+
+    <section class="va-panel">
+      <h2>Lokasi</h2>
+      <div id="vaCountries" class="va-clist"></div>
+    </section>
+  </main>
+  <script src="/analytics-app/static/view.js"></script>
+</body>
+</html>
