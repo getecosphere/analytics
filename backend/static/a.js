@@ -20,8 +20,28 @@
     var url = "/analytics-beacon/collect";
     var app = (s && s.getAttribute("data-app")) || "";
 
+    // Optional owner opt-out: with `data-skip-roles="superadmin"` the beacon
+    // no-ops while the (same-origin) estate session carries one of those roles,
+    // so the owner's own browsing is never counted. Reads the estate session
+    // object (localStorage/sessionStorage) — no token, only role names.
+    var skipRoles = ((s && s.getAttribute("data-skip-roles")) || "").toLowerCase()
+      .split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+    var sessionKey = (s && s.getAttribute("data-session-key")) || "eco_session";
+    function isOwner() {
+      if (!skipRoles.length) return false;
+      try {
+        var raw = localStorage.getItem(sessionKey) || sessionStorage.getItem(sessionKey);
+        if (!raw) return false;
+        var u = (JSON.parse(raw) || {}).user || {};
+        var roles = [u.role].concat(u.roles || []).filter(Boolean).map(function (r) { return String(r).toLowerCase(); });
+        for (var i = 0; i < skipRoles.length; i++) { if (roles.indexOf(skipRoles[i]) >= 0) return true; }
+      } catch (e) { /* ignore */ }
+      return false;
+    }
+
     function send(type) {
       try {
+        if (isOwner()) return; // never count the owner/superadmin
         var payload = JSON.stringify({
           site: site,
           type: type,

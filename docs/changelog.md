@@ -1,5 +1,14 @@
 # analytics changelog
 
+## 0.7.0 (2026-10-01)
+- **Owner opt-out (`data-skip-roles`).** The beacon now accepts
+  `data-skip-roles="superadmin"` (comma list) plus optional
+  `data-session-key` (default `eco_session`): while the same-origin estate
+  session carries one of those roles, the beacon no-ops — so the owner's own
+  browsing is never counted, giving clean traffic figures. Client-side only
+  (roles read from the estate session object, no token); additive, backward
+  compatible when the attribute is absent.
+
 ## 0.6.0 (2026-10-01)
 - **Public minimal stats.** New `GET /analytics-beacon/stats?range=24h|7d|30d`
   returns only aggregate counts — `views`, `visitors`, `active` — with no pages,
