@@ -1,5 +1,21 @@
 # analytics changelog
 
+## 0.8.0 (2026-10-02)
+- **Zoomable realtime chart (app view).** The app-view graph is now an
+  interactive timeline: the mouse **wheel zooms** and **drag pans** the window
+  (anchored at the cursor, like Google Analytics), bounded from **1 second to
+  30 days**; the `24 jam / 7 hari / 30 hari` tabs are presets, and double-click
+  resets to the active tab. At fine zoom the bars read like a heartbeat — each
+  bar is the distinct users active in that bucket — with a **concurrent-users
+  line** (presence: a visitor stays "active" for 60s after their last event)
+  so the pulse is continuous rather than a bare spike train.
+- **New `GET /analytics-app/api/series?from&to&buckets`.** Returns ~`buckets`
+  points over `[from, to]` (max 30 days) with `{t, users, events, pv,
+  concurrent}`. The server picks a "nice" step (1s…1d) and answers from
+  in-memory **multi-resolution rollups** (minute, hour, day) so the on-screen
+  bucket count stays bounded; raw events back sub-minute zoom. The old
+  `/api/summary` endpoint is unchanged.
+
 ## 0.7.0 (2026-10-01)
 - **Owner opt-out (`data-skip-roles`).** The beacon now accepts
   `data-skip-roles="superadmin"` (comma list) plus optional

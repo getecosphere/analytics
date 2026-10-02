@@ -39,9 +39,16 @@ For an OS-style SPA (one URL, app windows) the default dashboard's marketing
 chrome (`/static/style.css`, header/footer, top pages) does not fit. Set
 `VIEW: app` and `/analytics-app` serves a **second, self-contained dashboard**:
 no estate assets, theme-aware (follows the OS theme), **mobile-first**, and led
-by application usage — active now, apps focused right now, top apps, a views
-timeline, devices, new-vs-returning and locations. The default view is
-untouched when `VIEW` is omitted.
+by application usage — active now, apps focused right now, top apps, a
+**zoomable realtime timeline**, devices, new-vs-returning and locations. The
+default view is untouched when `VIEW` is omitted.
+
+The timeline chart is interactive: **wheel to zoom** (anchored at the cursor)
+and **drag to pan**, from **1 second to 30 days**, ala Google Analytics — the
+`24 jam / 7 hari / 30 hari` tabs are presets and double-click resets. Bars are
+distinct users per bucket (a heartbeat-like spike train at fine zoom); a
+concurrent-users line (presence window 60s) keeps the pulse continuous. Powered
+by `GET /analytics-app/api/series` over in-memory minute/hour/day rollups.
 
 ## Compose
 

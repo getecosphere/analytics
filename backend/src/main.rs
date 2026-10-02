@@ -9,9 +9,14 @@
 //! report a virtual view via `window.ecoAnalytics.view(key)`, so per-app
 //! `top_apps` and per-app `live.apps` counters work without fake URLs.
 //!
+//! v0.8 adds `GET /analytics-app/api/series?from&to&buckets` — an
+//! arbitrary-window series for the dashboard's wheel-zoom chart. It is answered
+//! from in-memory multi-resolution rollups (minute/hour/day), with raw events
+//! backing sub-minute zoom and a presence-derived concurrent-users line.
+//!
 //! Future sources (Cloudflare zone/RUM, GA4) plug into the same store.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -41,6 +46,12 @@ static VIEW_CSS: &str = include_str!("../static/view.css");
 static VIEW_JS: &str = include_str!("../static/view.js");
 
 const MAX_EVENTS: usize = 500_000;
+
+/// Presence window (seconds) for the realtime "concurrent users" line. A
+/// visitor counts as present at time `t` if they emitted any event in
+/// `[t - PRESENCE, t]`. The beacon heartbeats every 30s, so 60s tolerates one
+/// missed beat before a visitor decays out of the pulse.
+const PRESENCE: i64 = 60;
 
 fn kind_pageview() -> String {
     "pageview".to_string()
@@ -78,10 +89,58 @@ struct Event {
     app: String,
 }
 
+/// Aggregated counters for one rollup bucket (distinct visitor set + counts).
+#[derive(Clone, Default)]
+struct Agg {
+    events: u64,
+    pv: u64,
+    users: HashSet<String>,
+}
+
+/// Multi-resolution rollups so any zoom window can be answered from a bounded
+/// set of buckets instead of re-scanning every raw event: minute (fine, ~31d),
+/// hour and day (coarse, long retention). Raw events still back the finest
+/// (< 1 min) zoom where per-second detail is needed.
+#[derive(Default)]
+struct Rollups {
+    minute: BTreeMap<i64, Agg>,
+    hour: BTreeMap<i64, Agg>,
+    day: BTreeMap<i64, Agg>,
+}
+
+fn add_roll(roll: &mut BTreeMap<i64, Agg>, key: i64, ev: &Event) {
+    let a = roll.entry(key).or_default();
+    a.events += 1;
+    if ev.kind != "heartbeat" {
+        a.pv += 1;
+    }
+    if !ev.visitor.is_empty() {
+        a.users.insert(ev.visitor.clone());
+    }
+}
+
+impl Rollups {
+    fn add(&mut self, ev: &Event) {
+        add_roll(&mut self.minute, ev.ts / 60, ev);
+        add_roll(&mut self.hour, ev.ts / 3_600, ev);
+        add_roll(&mut self.day, ev.ts / 86_400, ev);
+        // Bound memory: keep ~31 days of minute detail. Older windows are
+        // still served from the hour/day rollups via the step ladder.
+        let keep = 31 * 1440;
+        let cutoff = ev.ts / 60 - keep;
+        if self.minute.len() > (keep + 1024) as usize {
+            while self.minute.first_key_value().map_or(false, |(&k, _)| k < cutoff) {
+                self.minute.pop_first();
+            }
+        }
+    }
+}
+
 #[derive(Clone)]
 struct AppState {
     events: Arc<Mutex<Vec<Event>>>,
     file: Arc<Mutex<Option<File>>>,
+    rollups: Arc<Mutex<Rollups>>,
     site: String,
     /// Which dashboard to serve at `/analytics-app`: `default` (estate
     /// marketing chrome, for getecosphere.com) or `app` (self-contained,
@@ -375,6 +434,9 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
             }
         }
     }
+    if let Ok(mut r) = state.rollups.lock() {
+        r.add(&ev);
+    }
     log("info", if is_pv { "pageview" } else { "heartbeat" });
 
     let mut r = StatusCode::NO_CONTENT.into_response();
@@ -610,6 +672,227 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         .into_response()
 }
 
+#[derive(Deserialize)]
+struct SeriesQuery {
+    #[serde(default)]
+    from: Option<i64>,
+    #[serde(default)]
+    to: Option<i64>,
+    #[serde(default)]
+    buckets: Option<usize>,
+}
+
+/// "Nice" bucket steps, seconds — powers of seconds and minutes up to a day.
+/// The query picks the smallest step whose on-screen bucket count stays within
+/// the requested budget, so zooming never fetches an unbounded number of points.
+const STEP_LADDER: [i64; 16] = [
+    1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 86400,
+];
+
+fn choose_step(span: i64, buckets: usize) -> i64 {
+    let ideal = span.max(1) as f64 / buckets.max(1) as f64;
+    for s in STEP_LADDER {
+        if s as f64 >= ideal {
+            return s;
+        }
+    }
+    86_400
+}
+
+#[derive(Serialize)]
+struct Point {
+    /// Bucket start, unix seconds.
+    t: i64,
+    /// Distinct visitors active inside the bucket (the "heartbeat" spikes).
+    users: u64,
+    events: u64,
+    pv: u64,
+    /// Presence-derived concurrent users at the bucket (sliding window); only
+    /// computed from raw events (fine zoom), `null` at coarse resolutions.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    concurrent: Option<u64>,
+}
+
+fn series_from_rollup(
+    roll: &BTreeMap<i64, Agg>,
+    origin: i64,
+    step: i64,
+    n: usize,
+    base: i64,
+) -> Vec<Point> {
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let t = origin + i as i64 * step;
+        let k0 = t / base;
+        let k1 = (t + step - 1) / base;
+        let mut users: HashSet<&str> = HashSet::new();
+        let mut events = 0u64;
+        let mut pv = 0u64;
+        for (_, a) in roll.range(k0..=k1) {
+            events += a.events;
+            pv += a.pv;
+            for u in &a.users {
+                users.insert(u.as_str());
+            }
+        }
+        out.push(Point {
+            t,
+            users: users.len() as u64,
+            events,
+            pv,
+            concurrent: None,
+        });
+    }
+    out
+}
+
+fn series_from_raw(
+    evs: &[Event],
+    origin: i64,
+    step: i64,
+    n: usize,
+    presence: i64,
+) -> Vec<Point> {
+    let end = origin + n as i64 * step;
+    let mut sets: Vec<HashSet<&str>> = (0..n).map(|_| HashSet::new()).collect();
+    let mut ev_count = vec![0u64; n];
+    let mut pv_count = vec![0u64; n];
+    for ev in evs {
+        if ev.ts < origin || ev.ts >= end {
+            continue;
+        }
+        let idx = ((ev.ts - origin) / step) as usize;
+        if idx >= n {
+            continue;
+        }
+        ev_count[idx] += 1;
+        if ev.kind != "heartbeat" {
+            pv_count[idx] += 1;
+        }
+        if !ev.visitor.is_empty() {
+            sets[idx].insert(ev.visitor.as_str());
+        }
+    }
+
+    // Concurrent users: one sliding-window pass. Window for bucket i is
+    // [t - presence, t + step); both ends move forward monotonically, so a
+    // two-pointer sweep with a distinct-count map is linear.
+    let mut counts: HashMap<&str, u32> = HashMap::new();
+    let mut active = 0usize;
+    let mut left = 0usize;
+    let mut right = 0usize;
+    let mut conc = vec![0u64; n];
+    for i in 0..n {
+        let b = origin + i as i64 * step;
+        let wl = b - presence;
+        let wr = b + step;
+        while right < evs.len() && evs[right].ts < wr {
+            let v = evs[right].visitor.as_str();
+            if !v.is_empty() {
+                let e = counts.entry(v).or_insert(0);
+                if *e == 0 {
+                    active += 1;
+                }
+                *e += 1;
+            }
+            right += 1;
+        }
+        while left < right && evs[left].ts < wl {
+            let v = evs[left].visitor.as_str();
+            if !v.is_empty() {
+                if let Some(e) = counts.get_mut(v) {
+                    if *e > 0 {
+                        *e -= 1;
+                    }
+                    if *e == 0 {
+                        active = active.saturating_sub(1);
+                    }
+                }
+            }
+            left += 1;
+        }
+        conc[i] = active as u64;
+    }
+
+    (0..n)
+        .map(|i| Point {
+            t: origin + i as i64 * step,
+            users: sets[i].len() as u64,
+            events: ev_count[i],
+            pv: pv_count[i],
+            concurrent: Some(conc[i]),
+        })
+        .collect()
+}
+
+/// Zoomable traffic series for the dashboard chart. `?from&to&buckets` returns
+/// ~`buckets` points over `[from, to]` (max 30 days); the server picks a nice
+/// step and answers from the finest rollup that covers the window (raw events
+/// for sub-minute zoom, minute/hour/day rollups above). Used by the app-view
+/// chart's wheel-zoom / drag-pan interaction.
+async fn series(State(state): State<AppState>, Query(q): Query<SeriesQuery>) -> Response {
+    let now = now_ts();
+    let to = q.to.unwrap_or(now).min(now);
+    let max_span = 30 * 86_400;
+    let mut from = q.from.unwrap_or(to - 86_400);
+    if to - from > max_span {
+        from = to - max_span;
+    }
+    if from >= to {
+        from = to - 1;
+    }
+    let buckets = q.buckets.unwrap_or(160).clamp(8, 400);
+    let step = choose_step(to - from, buckets);
+    let base = if step >= 86_400 {
+        86_400
+    } else if step >= 3_600 {
+        3_600
+    } else if step >= 60 {
+        60
+    } else {
+        1
+    };
+    // Align the grid to the rollup base so merged buckets are exact.
+    let origin = if base > 1 { from.div_euclid(base) * base } else { from };
+    let n = ((((to - origin).max(1) + step - 1) / step) as usize).clamp(1, buckets + 2);
+    let end = origin + n as i64 * step;
+
+    let points = if base == 1 {
+        match state.events.lock() {
+            Ok(evs) => {
+                let lo = evs.partition_point(|e| e.ts < origin - PRESENCE);
+                let hi = evs.partition_point(|e| e.ts < end);
+                series_from_raw(&evs[lo..hi], origin, step, n, PRESENCE)
+            }
+            Err(_) => Vec::new(),
+        }
+    } else {
+        match state.rollups.lock() {
+            Ok(r) => {
+                let roll = match base {
+                    86_400 => &r.day,
+                    3_600 => &r.hour,
+                    _ => &r.minute,
+                };
+                series_from_rollup(roll, origin, step, n, base)
+            }
+            Err(_) => Vec::new(),
+        }
+    };
+
+    let body = serde_json::json!({
+        "from": origin,
+        "to": to,
+        "step": step,
+        "points": points,
+    });
+    (
+        [(header::CONTENT_TYPE, "application/json")],
+        body.to_string(),
+    )
+        .into_response()
+}
+
 /// Public, minimal aggregate for lightweight widgets (e.g. the OS footer):
 /// just counts over a range — no pages, referrers, keywords, or countries.
 async fn public_stats(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -> Response {
@@ -653,23 +936,25 @@ async fn public_stats(State(state): State<AppState>, Query(q): Query<SummaryQuer
         .into_response()
 }
 
-fn load_events(path: &PathBuf, events: &Arc<Mutex<Vec<Event>>>) -> usize {
+fn load_events(path: &PathBuf, events: &Arc<Mutex<Vec<Event>>>) -> (usize, Rollups) {
+    let mut rollups = Rollups::default();
     let f = match File::open(path) {
         Ok(f) => f,
-        Err(_) => return 0,
+        Err(_) => return (0, rollups),
     };
     let mut guard = match events.lock() {
         Ok(g) => g,
-        Err(_) => return 0,
+        Err(_) => return (0, rollups),
     };
     let mut n = 0usize;
     for line in BufReader::new(f).lines().map_while(Result::ok) {
         if let Ok(ev) = serde_json::from_str::<Event>(&line) {
+            rollups.add(&ev);
             guard.push(ev);
             n += 1;
         }
     }
-    n
+    (n, rollups)
 }
 
 #[tokio::main]
@@ -690,7 +975,7 @@ async fn main() {
     let _ = fs::create_dir_all(&data_dir);
     let events_path = data_dir.join("events.ndjson");
     let events = Arc::new(Mutex::new(Vec::new()));
-    let loaded = load_events(&events_path, &events);
+    let (loaded, rollups) = load_events(&events_path, &events);
 
     let file = OpenOptions::new()
         .create(true)
@@ -701,6 +986,7 @@ async fn main() {
     let state = AppState {
         events,
         file: Arc::new(Mutex::new(file)),
+        rollups: Arc::new(Mutex::new(rollups)),
         site,
         view,
     };
@@ -715,6 +1001,7 @@ async fn main() {
         .route("/analytics-app/static/view.css", get(view_css))
         .route("/analytics-app/static/view.js", get(view_js))
         .route("/analytics-app/api/summary", get(summary))
+        .route("/analytics-app/api/series", get(series))
         .route("/analytics-app/api/health", get(health))
         .route("/analytics-beacon/a.js", get(beacon_js))
         .route("/analytics-beacon/collect", post(collect).options(collect_options))
@@ -726,6 +1013,7 @@ async fn main() {
         .route("/static/view.css", get(view_css))
         .route("/static/view.js", get(view_js))
         .route("/api/summary", get(summary))
+        .route("/api/series", get(series))
         .with_state(state);
 
     let addr = format!("0.0.0.0:{port}");

@@ -1,6 +1,6 @@
 name: analytics
 domain: analytics
-version: 0.7.0
+version: 0.8.0
 publisher: getecosphere
 status: unverified
 license: mit
@@ -14,7 +14,7 @@ artifacts: {}
 
 contract:
   version: 2
-  api: "analytics: GET /analytics-app (dashboard) + GET /analytics-app/api/summary + public beacon POST /analytics-beacon/collect"
+  api: "analytics: GET /analytics-app (dashboard) + GET /analytics-app/api/summary + GET /analytics-app/api/series (zoomable time range) + public beacon POST /analytics-beacon/collect"
   env:
     fields:
       SERVER_PORT:

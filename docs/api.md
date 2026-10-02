@@ -78,5 +78,31 @@ pseudonymous id per device/browser; `top_keywords` comes from referrer query
 strings and is often empty (search engines hide it) → the dashboard shows
 “(not provided)”.
 
+### GET /analytics-app/api/series?from=&to=&buckets=
+
+Arbitrary-window series for the zoomable app-view chart — `from`/`to` are unix
+seconds (max span 30 days; defaults to the last 24h), `buckets` is the on-screen
+point budget (default 160, clamped 8–400). The server picks a "nice" step from
+`1s, 2s, 5s, 10s, 15s, 30s, 1m, 2m, 5m, 10m, 15m, 30m, 1h, 2h, 6h, 1d` so the
+number of returned points stays bounded, and answers from multi-resolution
+in-memory rollups (minute/hour/day) — raw events back sub-minute zoom.
+
+```json
+{
+  "from": 1790899200, "to": 1790902800, "step": 1,
+  "points": [
+    { "t": 1790899200, "users": 1, "events": 1, "pv": 1, "concurrent": 2 }
+  ]
+}
+```
+
+- `t` — bucket start (unix seconds).
+- `users` — distinct visitors active inside the bucket (the chart bars).
+- `events` / `pv` — all events / pageviews in the bucket.
+- `concurrent` — presence-derived concurrent users (a visitor stays active for
+  `PRESENCE` = 60s after their last event). Only present at fine steps
+  (`step < 60`), where it is drawn as the realtime pulse **line**; omitted
+  (`null`) at coarse resolutions, where `users` bars already pulse.
+
 ### GET /analytics-app/api/health
 Health for the analytics service.
