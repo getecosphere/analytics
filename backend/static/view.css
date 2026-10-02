@@ -80,6 +80,15 @@ body {
 .va-panel h2 { margin: 0 0 12px; font-size: 0.9rem; font-weight: 700; }
 .va-attr { color: var(--label); font-weight: 400; font-size: 0.72rem; }
 #vaChart { width: 100%; height: 200px; display: block; cursor: grab; touch-action: none; }
+.va-chartwrap { position: relative; }
+.va-tip {
+  position: absolute; z-index: 5; pointer-events: none; white-space: nowrap;
+  transform: translate(-50%, -100%); padding: 6px 9px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--srf2); color: var(--ink);
+  font-size: 0.72rem; line-height: 1.4; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
+}
+.va-tip b { display: block; font-weight: 700; }
+.va-tip span { color: var(--label); font-variant-numeric: tabular-nums; }
 .va-hint { margin-top: 8px; color: var(--label); font-size: 0.7rem; }
 
 .va-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }

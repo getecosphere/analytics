@@ -10,6 +10,8 @@
   var BUCKETS = 160;
   var MAX_SPAN = 30 * 86400;
   var seriesTimer = null;
+  var hoverIdx = -1;
+  var geo = null;
 
   function el(id) { return document.getElementById(id); }
   function n(x) { return (x || 0).toLocaleString(); }
@@ -99,6 +101,7 @@
     var nBars = pts.length;
     var gap = nBars > 120 ? 1 : nBars > 60 ? 1 : nBars > 30 ? 2 : nBars > 14 ? 4 : 7;
     var bw = Math.max(1, (cw - gap * (nBars - 1)) / nBars);
+    geo = { pad: pad, ch: ch, bw: bw, gap: gap, n: nBars, yTop: yTop };
 
     // Bars = distinct users per bucket (the "heartbeat" spikes).
     ctx.fillStyle = colAccent;
@@ -118,6 +121,19 @@
         if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       });
       ctx.stroke();
+    }
+
+    // Hover highlight: guide line + outlined bar so a single bucket is readable.
+    if (hoverIdx >= 0 && hoverIdx < nBars) {
+      var hx = pad.l + hoverIdx * (bw + gap);
+      var hp = pts[hoverIdx];
+      ctx.globalAlpha = 0.45; ctx.strokeStyle = colMuted;
+      ctx.beginPath(); ctx.moveTo(hx + bw / 2, pad.t); ctx.lineTo(hx + bw / 2, pad.t + ch); ctx.stroke();
+      ctx.globalAlpha = 1;
+      var hbh = (hp.users / yTop) * ch;
+      ctx.strokeStyle = colAccent; ctx.lineWidth = 1.5;
+      ctx.strokeRect(hx - 0.5, pad.t + ch - hbh - 0.5, Math.max(bw, 1) + 1, Math.max(hbh, 1) + 1);
+      ctx.lineWidth = 1;
     }
 
     ctx.fillStyle = colMuted;
@@ -168,12 +184,41 @@
     loadSeries();
   }
 
+  function tipTime(t, step) {
+    var d = new Date(t * 1000);
+    var date = pad2(d.getDate()) + "/" + pad2(d.getMonth() + 1);
+    if (step < 60) return date + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds());
+    if (step < 86400) {
+      var end = new Date((t + step) * 1000);
+      return date + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) +
+        "–" + pad2(end.getHours()) + ":" + pad2(end.getMinutes());
+    }
+    return date + " · 1 hari";
+  }
+  function hideTip() { var tip = el("vaTip"); if (tip) tip.hidden = true; }
+  function showTip(idx) {
+    var tip = el("vaTip");
+    if (!tip || !series || !geo) return;
+    var p = series.points[idx];
+    if (!p) return;
+    tip.innerHTML = "<b>" + escapeHtml(tipTime(p.t, series.step || 1)) + "</b>" +
+      "<span>" + n(p.users) + " pengguna · " + n(p.events) + " aktivitas · " + n(p.pv) + " tampilan</span>";
+    var cx = geo.pad.l + idx * (geo.bw + geo.gap) + geo.bw / 2;
+    var hbh = (p.users / geo.yTop) * geo.ch;
+    var wrap = tip.parentElement;
+    var ww = wrap ? wrap.clientWidth : 800;
+    tip.style.left = Math.max(70, Math.min(ww - 70, cx)) + "px";
+    tip.style.top = Math.max(30, geo.pad.t + geo.ch - hbh - 10) + "px";
+    tip.hidden = false;
+  }
+
   function bindChart() {
     var cv = el("vaChart");
     if (!cv) return;
 
     cv.addEventListener("wheel", function (e) {
       e.preventDefault();
+      hoverIdx = -1; hideTip();
       var rect = cv.getBoundingClientRect();
       var x = (e.clientX != null ? e.clientX : rect.left + rect.width / 2) - rect.left;
       var frac = Math.min(1, Math.max(0, (x - 34) / chartW()));
@@ -191,6 +236,7 @@
     cv.addEventListener("mousedown", function (e) {
       drag = { x: e.clientX, from: viewFrom, to: viewTo };
       cv.style.cursor = "grabbing";
+      hoverIdx = -1; hideTip();
       e.preventDefault();
     });
     window.addEventListener("mousemove", function (e) {
@@ -205,6 +251,27 @@
       if (drag) { drag = null; cv.style.cursor = "grab"; }
     });
     cv.addEventListener("dblclick", function () { setRange(range); });
+
+    function pickIdx(clientX) {
+      if (!geo || !series || !series.points) return -1;
+      var x = clientX - cv.getBoundingClientRect().left;
+      var idx = Math.floor((x - geo.pad.l) / (geo.bw + geo.gap));
+      return (idx >= 0 && idx < geo.n) ? idx : -1;
+    }
+    cv.addEventListener("mousemove", function (e) {
+      if (drag) return;
+      var idx = pickIdx(e.clientX);
+      if (idx >= 0) showTip(idx);
+      if (idx === hoverIdx) return;
+      hoverIdx = idx;
+      if (series) drawSeries(series);
+      if (idx < 0) hideTip();
+    });
+    cv.addEventListener("mouseleave", function () {
+      if (hoverIdx < 0) return;
+      hoverIdx = -1; hideTip();
+      if (series) drawSeries(series);
+    });
   }
 
   function donut(id, segs) {

@@ -1,5 +1,16 @@
 # analytics changelog
 
+## 0.8.1 (2026-10-02)
+- **Fix: chart buckets drifted ("looks random").** The series grid is now
+  anchored to absolute `step` boundaries instead of the query's `from`, so as a
+  live window slides every bucket keeps its time — events no longer jump between
+  bars on each refresh — and axis labels fall on round clock marks. Before, the
+  origin was offset by up to a step (e.g. labels at `:51`, `:21`) and reshuffled
+  each poll.
+- **Hover tooltip (app view).** Hovering the timeline highlights a single bucket
+  and shows its exact time range plus users / activities / pageviews, so any bar
+  is readable.
+
 ## 0.8.0 (2026-10-02)
 - **Zoomable realtime chart (app view).** The app-view graph is now an
   interactive timeline: the mouse **wheel zooms** and **drag pans** the window

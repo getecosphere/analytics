@@ -12,7 +12,7 @@
       document.documentElement.dataset.mode = t === "terang" ? "light" : "dark";
     } catch (e) {}
   })();</script>
-  <link rel="stylesheet" href="/analytics-app/static/view.css?v=20261002a" />
+  <link rel="stylesheet" href="/analytics-app/static/view.css?v=20261002b" />
 </head>
 <body>
   <main class="va-wrap">
@@ -56,7 +56,10 @@
 
     <section class="va-panel">
       <h2>Aktivitas aplikasi <span class="va-attr" id="vaChartInfo">—</span></h2>
-      <canvas id="vaChart" height="200" title="Gulir untuk zoom, seret untuk menggeser"></canvas>
+      <div class="va-chartwrap">
+        <canvas id="vaChart" height="200" title="Gulir untuk zoom, seret untuk menggeser"></canvas>
+        <div id="vaTip" class="va-tip" hidden></div>
+      </div>
       <div class="va-hint">Gulir di area grafik untuk zoom (1 detik–30 hari) · seret untuk menggeser · klik ganda untuk reset ke tab</div>
     </section>
 
@@ -85,6 +88,6 @@
       <div id="vaCountries" class="va-clist"></div>
     </section>
   </main>
-  <script src="/analytics-app/static/view.js?v=20261002a"></script>
+  <script src="/analytics-app/static/view.js?v=20261002b"></script>
 </body>
 </html>

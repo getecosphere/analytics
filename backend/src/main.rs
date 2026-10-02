@@ -852,8 +852,11 @@ async fn series(State(state): State<AppState>, Query(q): Query<SeriesQuery>) -> 
     } else {
         1
     };
-    // Align the grid to the rollup base so merged buckets are exact.
-    let origin = if base > 1 { from.div_euclid(base) * base } else { from };
+    // Anchor the grid to absolute `step` boundaries so bucket times are stable
+    // (a given event always lands in the same bucket, and labels fall on round
+    // clock marks) even as a live window slides. `step` is always a multiple of
+    // `base` (see the ladder), so rollup merging stays exact.
+    let origin = from.div_euclid(step) * step;
     let n = ((((to - origin).max(1) + step - 1) / step) as usize).clamp(1, buckets + 2);
     let end = origin + n as i64 * step;
 
