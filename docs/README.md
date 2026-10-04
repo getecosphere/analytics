@@ -51,6 +51,16 @@ concurrent-users line (presence window 60s) keeps the pulse continuous. Hover a
 bar for its exact time range and counts. Powered by
 `GET /analytics-app/api/series` over in-memory minute/hour/day rollups.
 
+### Events & in-app traffic
+
+Besides pageviews, the beacon can record **named domain events** —
+`window.ecoAnalytics.event("google_inapp_blocked")` — which are counted in the
+`top_events` array and the “Events” panel, never as pageviews. This is how an
+estate measures a funnel (e.g. blocked sign-ins) without inflating traffic.
+The beacon also detects an **embedded webview** (Instagram/Threads/TikTok/…) and
+tags every event with `wv`; the summary exposes
+`inapp: { pageviews, visitors }` and both dashboards show it.
+
 ## Compose
 
 ```yaml

@@ -176,6 +176,10 @@
     renderApps(data);
     rows("pages", data.top_pages, "path");
     rows("refs", data.top_referrers);
+    rows("events", data.top_events);
+    var inapp = data.inapp || { pageviews: 0, visitors: 0 };
+    if (el("inappPv")) el("inappPv").textContent = n(inapp.pageviews);
+    if (el("inappVis")) el("inappVis").textContent = n(inapp.visitors);
 
     var brand = cssVar("--color-brand") || "#5b3fd6";
     var success = cssVar("--color-success") || "#198653";

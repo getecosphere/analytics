@@ -1,5 +1,18 @@
 # analytics changelog
 
+## 0.9.0 (2026-10-04)
+- **Named domain events (separated from pageviews).** `POST
+  /analytics-beacon/collect` already accepted an arbitrary `type`, but every
+  non-heartbeat was counted as a pageview. Now only `type: "pageview"` counts
+  as a pageview/visitor; any other type (e.g. `google_inapp_blocked`) is a
+  **named event**, surfaced in a new `top_events` array (and `total.events`) and
+  in an “Events” panel. This enables funnel/behaviour measurement without
+  inflating traffic. The beacon gains `window.ecoAnalytics.event(name)`.
+- **In-app browser dimension.** The beacon now detects an embedded webview
+  (Instagram/Threads/TikTok/…) and tags every event with `wv`. The summary
+  exposes `inapp: { pageviews, visitors }`, shown on both dashboards — useful
+  where third-party sign-in (Google OAuth) is blocked inside webviews.
+
 ## 0.8.1 (2026-10-02)
 - **Fix: chart buckets drifted ("looks random").** The series grid is now
   anchored to absolute `step` boundaries instead of the query's `from`, so as a

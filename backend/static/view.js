@@ -345,6 +345,12 @@
 
     renderApps(data);
     renderCountries(data.top_countries);
+    rows("vaEvents", data.top_events);
+    var inapp = data.inapp || { pageviews: 0, visitors: 0 };
+    if (el("vaInapp")) {
+      el("vaInapp").textContent = "dari browser dalam aplikasi: " + n(inapp.pageviews) +
+        " tampilan · " + n(inapp.visitors) + " pengunjung";
+    }
 
     var brand = varColor("--accent", "#e0a63a");
     var ok = varColor("--ok", "#34d399");

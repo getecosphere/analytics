@@ -19,12 +19,18 @@ It posts one pageview via `navigator.sendBeacon` (fallback `XMLHttpRequest`).
 Auth: none. Body (JSON):
 
 ```json
-{ "site": "getecosphere", "p": "/pricing", "r": "https://google.com/", "app": "" }
+{ "site": "getecosphere", "p": "/pricing", "r": "https://google.com/", "app": "", "wv": false }
 ```
 
 Also accepted: `path` (alias `p`), `referrer`/`ref` (alias `r`). Country is read
 from `CF-IPCountry`; the visitor id is a daily hash of client IP + user-agent.
 Returns `204`. CORS `*`.
+
+`type` (alias for the event kind) defaults to `pageview`; `heartbeat` is
+engaged-time only. **Any other `type` is a named event** (e.g.
+`google_inapp_blocked`) and is counted in `top_events`/`total.events` — never as
+a pageview or visitor. `wv` (bool) marks the request as coming from an
+in-app/embedded browser; the beacon sets it automatically.
 
 `app` (optional): a virtual-view key for OS-style SPAs where the URL never
 changes but the visitor's real view is the app window they have focused. The
@@ -58,12 +64,14 @@ The HTML dashboard. Fetches `/analytics-app/api/summary` and refreshes every
   "range": "7d",
   "site": "getecosphere",
   "generated_at": "2026-09-25T00:00:00Z",
-  "total":     { "pageviews": 0, "visitors": 0 },
+  "total":     { "pageviews": 0, "visitors": 0, "events": 0 },
   "today":     { "pageviews": 0, "visitors": 0 },
   "live":      { "window_seconds": 300, "pageviews": 0, "visitors": 0, "apps": [ { "key": "python", "count": 0 } ] },
   "series":    [ { "t": "2026-09-19", "pageviews": 0, "visitors": 0 } ],
   "top_pages": [ { "key": "/", "count": 0 } ],
   "top_apps":  [ { "key": "python", "count": 0 } ],
+  "top_events": [ { "key": "google_inapp_blocked", "count": 0 } ],
+  "inapp":     { "pageviews": 0, "visitors": 0 },
   "top_referrers": [ { "key": "(direct)", "count": 0 } ],
   "top_countries": [ { "key": "ID", "count": 0 } ],
   "devices": [ { "key": "desktop", "count": 0 } ],

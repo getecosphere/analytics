@@ -87,6 +87,11 @@ struct Event {
     /// that key so per-app traffic can be counted without fake URLs.
     #[serde(default)]
     app: String,
+    /// Client-side flag: the visitor is in an in-app/embedded browser
+    /// (Instagram, Threads, TikTok, …). Lets the dashboard split traffic by
+    /// webview, where third-party logins (Google OAuth) cannot complete.
+    #[serde(default)]
+    wv: bool,
 }
 
 /// Aggregated counters for one rollup bucket (distinct visitor set + counts).
@@ -111,7 +116,7 @@ struct Rollups {
 fn add_roll(roll: &mut BTreeMap<i64, Agg>, key: i64, ev: &Event) {
     let a = roll.entry(key).or_default();
     a.events += 1;
-    if ev.kind != "heartbeat" {
+    if is_pageview(&ev.kind) {
         a.pv += 1;
     }
     if !ev.visitor.is_empty() {
@@ -160,6 +165,15 @@ struct CollectBody {
     kind: String,
     #[serde(default)]
     app: String,
+    #[serde(default)]
+    wv: bool,
+}
+
+/// A real pageview. `heartbeat` is engaged-time only; any other `type` is a
+/// named domain event (e.g. `google_inapp_blocked`) and must NOT inflate
+/// pageview/visitor totals.
+fn is_pageview(kind: &str) -> bool {
+    kind == "pageview"
 }
 
 #[derive(Deserialize)]
@@ -416,8 +430,9 @@ async fn collect(State(state): State<AppState>, headers: HeaderMap, body: Bytes)
         device: detect_device(&user_agent(&headers)),
         keyword,
         app: cb.app,
+        wv: cb.wv,
     };
-    let is_pv = ev.kind != "heartbeat";
+    let is_pv = is_pageview(&ev.kind);
 
     if let Ok(mut v) = state.events.lock() {
         v.push(ev.clone());
@@ -522,6 +537,12 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
     // Per-app pageviews (historical) + per-app distinct active visitors (live).
     let mut apps: HashMap<String, u64> = HashMap::new();
     let mut live_apps: HashMap<String, HashSet<String>> = HashMap::new();
+    // Named domain events (non-pageview, non-heartbeat) — e.g. a blocked
+    // in-app Google sign-in. Kept out of pageview/visitor totals.
+    let mut events_map: HashMap<String, u64> = HashMap::new();
+    // Pageviews/visitors that arrived from an in-app/embedded browser.
+    let mut wv_pv: u64 = 0;
+    let mut wv_visitors: HashSet<String> = HashSet::new();
 
     // First-ever sighting of each stable visitor id (whole history), so we can
     // classify the range's visitors as new vs returning.
@@ -556,7 +577,7 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         .collect();
 
     for ev in &events {
-        let is_pv = ev.kind != "heartbeat";
+        let is_pv = is_pageview(&ev.kind);
         // Active users (GA-style): any event in the last 5 minutes, including
         // heartbeats, keeps a visitor "active" for the full window.
         if ev.ts >= now - 300 {
@@ -571,11 +592,23 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
                     .insert(ev.visitor.clone());
             }
         }
-        if ev.ts < start || !is_pv {
+        if ev.ts < start {
+            continue;
+        }
+        if !is_pv {
+            // Named event (heartbeat excluded) — counted separately, never as
+            // a pageview.
+            if ev.kind != "heartbeat" {
+                *events_map.entry(ev.kind.clone()).or_insert(0) += 1;
+            }
             continue;
         }
         total_pv += 1;
         total_visitors.insert(ev.visitor.clone());
+        if ev.wv {
+            wv_pv += 1;
+            wv_visitors.insert(ev.visitor.clone());
+        }
         *pages.entry(ev.path.clone()).or_insert(0) += 1;
         if !ev.app.is_empty() {
             *apps.entry(ev.app.clone()).or_insert(0) += 1;
@@ -640,11 +673,13 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         .map(|(k, c)| serde_json::json!({ "key": k, "count": c }))
         .collect();
 
+    let total_events: u64 = events_map.values().sum();
+
     let body = serde_json::json!({
         "range": range,
         "site": state.site,
         "generated_at": Utc.timestamp_opt(now, 0).single().map(|d| d.to_rfc3339()).unwrap_or_default(),
-        "total": { "pageviews": total_pv, "visitors": total_visitors.len() },
+        "total": { "pageviews": total_pv, "visitors": total_visitors.len(), "events": total_events },
         "today": { "pageviews": today_pv, "visitors": today_visitors.len() },
         "live": {
             "window_seconds": 300,
@@ -655,6 +690,8 @@ async fn summary(State(state): State<AppState>, Query(q): Query<SummaryQuery>) -
         "series": series_json,
         "top_pages": top(&pages, 10),
         "top_apps": top(&apps, 12),
+        "top_events": top(&events_map, 12),
+        "inapp": { "pageviews": wv_pv, "visitors": wv_visitors.len() },
         "top_referrers": top(&refs, 10),
         "top_countries": top(&countries, 12),
         "devices": top(&devices, 6),

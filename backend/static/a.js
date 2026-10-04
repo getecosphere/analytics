@@ -39,6 +39,22 @@
       return false;
     }
 
+    // In-app/embedded browser (Instagram, Threads, TikTok, …): a webview,
+    // where third-party sign-in (Google OAuth) cannot complete. Reported as a
+    // `wv` dimension so the dashboard can split webview traffic.
+    function inApp() {
+      try {
+        var ua = (navigator.userAgent || "").toLowerCase();
+        if (!ua) return false;
+        if (/instagram|threads|fban|fbav|fb_iab|tiktok|bytedance|musical_ly|micromessenger|snapchat|pinterest|linkedin|line\//.test(ua)) return true;
+        if (ua.indexOf("; wv)") >= 0) return true;
+        if (ua.indexOf("android") >= 0 && ua.indexOf("version/") >= 0 && ua.indexOf("chrome") >= 0) return true;
+        if ((ua.indexOf("iphone") >= 0 || ua.indexOf("ipad") >= 0 || ua.indexOf("ipod") >= 0) &&
+            !/safari\/|crios|fxios|edgios/.test(ua)) return true;
+      } catch (e) { /* ignore */ }
+      return false;
+    }
+
     function send(type) {
       try {
         if (isOwner()) return; // never count the owner/superadmin
@@ -47,7 +63,8 @@
           type: type,
           p: location.pathname + location.search,
           r: document.referrer || "",
-          app: app
+          app: app,
+          wv: inApp()
         });
         if (navigator.sendBeacon) {
           navigator.sendBeacon(url, new Blob([payload], { type: "application/json" }));
@@ -70,6 +87,13 @@
         if (key === app) return;
         app = key;
         send("pageview");
+      },
+      // Named domain event (e.g. a funnel step). Counted separately from
+      // pageviews — `ecoAnalytics.event("signup_start")`.
+      event: function (name) {
+        name = typeof name === "string" ? name : "";
+        if (!name || name === "pageview" || name === "heartbeat") return;
+        send(name);
       }
     };
 
