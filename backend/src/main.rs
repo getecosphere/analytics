@@ -182,6 +182,12 @@ struct SummaryQuery {
     range: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct EventsQuery {
+    #[serde(default)]
+    prefix: Option<String>,
+}
+
 fn now_ts() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -976,6 +982,33 @@ async fn public_stats(State(state): State<AppState>, Query(q): Query<SummaryQuer
         .into_response()
 }
 
+/// Public aggregate of NAMED events (e.g. document downloads). Never a
+/// pageview/heartbeat total; only the `type` keys and their counts. Optional
+/// `?prefix=` narrows to a namespace (e.g. `dl:`).
+async fn public_events(State(state): State<AppState>, Query(q): Query<EventsQuery>) -> Response {
+    let prefix = q.prefix.unwrap_or_default();
+    let events = match state.events.lock() {
+        Ok(v) => v.clone(),
+        Err(_) => Vec::new(),
+    };
+    let mut map: HashMap<String, u64> = HashMap::new();
+    for ev in &events {
+        if ev.kind.is_empty() || ev.kind == "heartbeat" || is_pageview(&ev.kind) {
+            continue;
+        }
+        if !prefix.is_empty() && !ev.kind.starts_with(&prefix) {
+            continue;
+        }
+        *map.entry(ev.kind.clone()).or_insert(0) += 1;
+    }
+    let body = serde_json::json!({ "events": map }).to_string();
+    (
+        [(header::CONTENT_TYPE, "application/json; charset=utf-8")],
+        body,
+    )
+        .into_response()
+}
+
 fn load_events(path: &PathBuf, events: &Arc<Mutex<Vec<Event>>>) -> (usize, Rollups) {
     let mut rollups = Rollups::default();
     let f = match File::open(path) {
@@ -1047,6 +1080,7 @@ async fn main() {
         .route("/analytics-beacon/collect", post(collect).options(collect_options))
         .route("/analytics-beacon/health", get(health))
         .route("/analytics-beacon/stats", get(public_stats))
+        .route("/analytics-beacon/events", get(public_events))
         // standalone aliases (local dev / direct)
         .route("/static/app.css", get(app_css))
         .route("/static/app.js", get(app_js))

@@ -1,5 +1,11 @@
 # analytics changelog
 
+## 0.9.1
+- **`GET /analytics-beacon/events?prefix=`** — public aggregate counts of NAMED
+  events (e.g. `dl:<doc>` document downloads), keyed by event `type`. Never a
+  pageview/heartbeat total. Lets a public page show real, server-side counts
+  (e.g. per-document download stats) without admin access.
+
 ## 0.9.0 (2026-10-04)
 - **Named domain events (separated from pageviews).** `POST
   /analytics-beacon/collect` already accepted an arbitrary `type`, but every
